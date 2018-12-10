@@ -9,10 +9,10 @@
 (def inputs (map parse-input-line (get-inputs "day9.small.txt")))
 
 (defn move-clockwise [board from moves]
-  (mod (+ moves from) board))
+  (mod (+ moves from) (count board)))
 
 (defn move-anti-clockwise [board from moves]
-  (mod (- from moves) board))
+  (mod (- from moves) (count board)))
 
 (defn next-move [next-marble current-marble-index board]
   (if (= 0 (mod next-marble 23))
@@ -23,9 +23,6 @@
 
 ; Called before the board is changed so we get the correct marble to score with
 (defn get-score-for-move [{:keys [action index]} board marble]
-  (if (= action :remove)
-    (println (- marble (nth board index)))
-    0)
   (if (= action :remove)
     (+ marble (nth board index))
     0))
@@ -87,7 +84,8 @@
                                :new-score (+ (times :new-score) t-nsc)
                                :scores (+ (times :scores) t-s)
                                :count (inc (times :count)))]
-        (print \.)
+        ;(print \.)
+        ;(print-game-state board player-turn current-marble-index)
         (recur board
                (if (= (:action next-move) :add)
                  (inc board-size)
@@ -100,6 +98,7 @@
     (let [[game-time [scores times]] (get-time (game-loop game))
           sorted-scores (sort-by second scores)
           avg-times (sort-by :avg-time (map (fn [[label total-time]] {:label label :avg-time (/ total-time (:count times))}) times))]
+      (println)
       (println "Time: " (/ game-time 1000) "s")
       (println "Game: " game)
       (println "Winner: " (last sorted-scores))
