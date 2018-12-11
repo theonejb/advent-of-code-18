@@ -1,5 +1,6 @@
 (ns aoc18.day11
-  (:require [clojure.string :refer [join]]))
+  (:require [clojure.string :refer [join]]
+            [clojure.pprint :refer [pprint]]))
 
 (defn get-power-for-cell-at-coords [[x y] grid-serial]
   (let [x (inc x)                                           ; Because coords are ZERO based
@@ -27,123 +28,80 @@
               (assoc-in grid [y x] (get-power-for-cell-at-coords [x y] grid-serial)))
             grid coords)))
 
-(defn print-grid [grid]
-  (println (map (fn [row]
-                  (str (vec (map #(format "%-4s" %1) row)) "\n")) grid)))
+(defn get-value-from-table-at-coord [table [x y]]
+  (get-in table [y x] 0))
 
-(defn coord->matrix-coords [[x y] matrix-size]
-  (for [y (range y (+ matrix-size y))
-        x (range x (+ matrix-size x))]
-    [x y]))
+(defn get-sum-to-add-at-coord [sat [x y]]
+  ; Equation is I(x, y - 1) + I(x - 1, y) - I(x - 1, y - 1) where I is value of SAT at coords
+  (let [a (get-value-from-table-at-coord sat [x (dec y)])
+        b (get-value-from-table-at-coord sat [(dec x) y])
+        c (get-value-from-table-at-coord sat [(dec x) (dec y)])]
+    (- (+ a b) c)))
 
-(defn coord->matrix-edge-coords [[x-orig y-orig] matrix-size]
-  (filter (fn [[x y]]
-            (or (= x (dec (+ x-orig matrix-size)))
-                (= y (dec (+ y-orig matrix-size)))))
-          (coord->matrix-coords [x-orig y-orig] matrix-size)))
-
-(defn print-matrix-at-coords [[x-start y-start] grid matrix-size]
-  (let [matrix-coords (coord->matrix-coords [x-start y-start] matrix-size)]
-    (doseq [[x y] matrix-coords]
-      (if (and (= x x-start) (not (= y y-start)))
-        (println))
-      (print (format "%-4s" (get-in grid [y x]))))))
-
-(defn power-level-at-matrix [[x y] grid matrix-size]
-  (let [matrix-coords (coord->matrix-coords [x y] matrix-size)]
-    (reduce (fn [sum [x y]]
-              (+ sum (get-in grid [y x]))) 0 matrix-coords)))
-
-(defn power-level-at-matrix-with-cache [[x-orig y-orig] grid matrix-size cache]
-  (let [matrix-coords (coord->matrix-edge-coords [x-orig y-orig] matrix-size)
-        cached-power-level (cache [x-orig y-orig])]
-    (reduce (fn [sum [x y]]
-              (+ sum (get-in grid [y x]))) cached-power-level matrix-coords)))
-
-(defn grid->matrix-powers [grid matrix-size]
-  (let [x-max (inc (- 300 matrix-size))
-        y-max (inc (- 300 matrix-size))]
-    (for [x (range x-max)
-          y (range y-max)]
-      {:x     x
-       :y     y
-       :power (power-level-at-matrix [x y] grid matrix-size)
-       :size  matrix-size})))
-
-(defn grid->matrix-powers-with-cache [grid matrix-size cache]
-  (let [x-max (inc (- 300 matrix-size))
-        y-max (inc (- 300 matrix-size))
-
-        cache-map (reduce (fn [map {:keys [x y power]}]
-                            (assoc map [x y] power)) {} cache)]
-    (for [x (range x-max)
-          y (range y-max)]
-      {:x     x
-       :y     y
-       :power (power-level-at-matrix-with-cache [x y] grid matrix-size cache-map)
-       :size  matrix-size})))
-
-(defn find-largest-power-matrix
-  ([grid-serial]
-   (apply max-key :power (grid->matrix-powers (get-filled-grid 300 300 grid-serial) 3))))
-
-(defn grid->summed-table [grid]
+(defn grid->summed-area-table [grid]
   (let [height (count grid)
         width (count (first grid))
-        summed-table (vec (repeat height (vec (repeat width 0))))
-        summed-table (assoc-in summed-table [0 0] (get-in grid [0 0]))]
-    (reduce (fn [table {:keys [x y sum] :as t}]
-              (println (str "[" x ", " y "], "))
-              (assoc-in table [y x] sum))
-            summed-table
-            (for [y (range height)
-                  x (range width)]
-              {:x   x
-               :y   y
-               :sum (reduce (fn [sum [x y]]
-                              (+ sum (get-in grid [y x])))
-                            0
-                            (for [x1 (range (inc x))
-                                  y1 (range (inc y))]
-                              [x1 y1]))}))))
+        sat (vec (repeat height (vec (repeat width 0))))
+        sat (assoc-in sat [0 0] (get-in grid [0 0]))
+        coords (get-coords width height)]
+    (reduce (fn [sat [x y]]
+              (let [value-to-add (get-sum-to-add-at-coord sat [x y])
+                    grid-value-at-coord (get-in grid [y x])]
+                (assoc-in sat [y x] (+ grid-value-at-coord value-to-add))))
+            sat
+            coords)))
 
-(defn get-value-from-summed-table [table {:keys [x y]}]
-  (get-in table [y x]))
+(defn sat->sum-at-coord
+  ([sat [xa ya] [xb yb]]
+    ; [xa ya] is the top left edge and [xb yb] is the bottom right
+    ; The formula used is:
+    ; I(xb, yb) - I(xa - 1, yb) - I(xb, ya - 1) + I(xa - 1, ya - 1)
+   (let [a (get-value-from-table-at-coord sat [xb yb])
+         b (get-value-from-table-at-coord sat [(dec xa) yb])
+         c (get-value-from-table-at-coord sat [xb (dec ya)])
+         d (get-value-from-table-at-coord sat [(dec xa) (dec ya)])]
+     (+ (- a b c) d))))
 
-(defn summed-table->matrix-sum [summed-table [x-orig y-orig] matrix-size]
-  (let [bottom-right {:x (+ x-orig (dec matrix-size))
-                      :y (+ x-orig (dec matrix-size))}
-        bottom-left {:x x-orig
-                     :y (+ x-orig (dec matrix-size))}
-        top-right {:x (+ x-orig (dec matrix-size))
-                   :y y-orig}
-        top-left {:x x-orig
-                  :y y-orig}
-        get-val (partial get-value-from-summed-table summed-table)]
-    (- (+ (get-val bottom-right) (get-val top-left)) (get-val top-right) (get-val bottom-left))))
+(defn sat->sum-for-matrix [sat [x y] width height]
+  ; [x y] is the coordinate for the top left edge
+  (sat->sum-at-coord sat
+                     [x y]
+                     [(dec (+ x width)) (dec (+ y height))]))
 
-(defn grid->matrix-powers-with-summed-table [matrix-size summed-table]
-  (let [x-max (inc (- 300 matrix-size))
-        y-max (inc (- 300 matrix-size))]
-    (for [x (range x-max)
-          y (range y-max)]
-      {:x     x
-       :y     y
-       :power (summed-table->matrix-sum summed-table [x y] matrix-size)
-       :size  matrix-size})))
+(defn grid-sat->matrix-power-at-coord [sat [x y] matrix-size]
+  {:x     x
+   :y     y
+   :size  matrix-size
+   :power (sat->sum-for-matrix sat [x y] matrix-size matrix-size)})
 
-(defn find-largest-power-matrix-and-size [grid-serial]
-  (let [grid (get-filled-grid 300 300 grid-serial)
-        st (grid->summed-table grid)]
-    (loop [matrix-size 1
-           previous-powers (grid->matrix-powers-with-summed-table matrix-size st)
-           previous-max (apply max-key :power previous-powers)]
-      (println "Size " matrix-size)
-      (println "Max " previous-max)
-      (if (= matrix-size 301)
-        previous-max
-        (let [matrix-size (inc matrix-size)
-              current-powers (grid->matrix-powers-with-summed-table matrix-size st)
-              current-powers-max (apply max-key :power current-powers)
-              new-max (max-key :power previous-max current-powers-max)]
-          (recur matrix-size current-powers new-max))))))
+(defn max-power-at-matrix-size [sat matrix-size]
+  (let [height (count sat)
+        width (count (first sat))
+        all-coords (get-coords (- width matrix-size) (- height matrix-size))
+        max-power (apply max-key :power
+                         (map #(grid-sat->matrix-power-at-coord sat %1 matrix-size) all-coords))]
+    (assoc (assoc max-power :x (inc (:x max-power))) :y (inc (:y max-power)))))
+
+(defmacro get-time [expr]
+  `(let [start# (. System nanoTime)
+         ret# ~expr
+         spent-time# (/ (double (- (. System nanoTime) start#)) 1000000.0)]
+     [spent-time# ret#]))
+
+(defn find-max-power [sat]
+  (apply max-key :power (for [matrix-size (range 1 300)]
+                          (max-power-at-matrix-size sat matrix-size))))
+
+(defn part-1 []
+  (let [grid (get-filled-grid 300 300 2187)
+        grid-sat (grid->summed-area-table grid)
+        [time-spent result] (get-time (max-power-at-matrix-size grid-sat 3))]
+    (println "Result " result)
+    (println "Time spent " (/ time-spent 1000) "s")))
+
+(defn part-2 []
+  (let [grid (get-filled-grid 300 300 2187)
+        grid-sat (grid->summed-area-table grid)
+        [time-spent result] (get-time (find-max-power grid-sat))]
+    (println "Result " result)
+    (println "Time spent " (/ time-spent 1000) "s")))
