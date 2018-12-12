@@ -77,7 +77,7 @@
 (defn max-power-at-matrix-size [sat matrix-size]
   (let [height (count sat)
         width (count (first sat))
-        all-coords (get-coords (- width matrix-size) (- height matrix-size))
+        all-coords (get-coords (inc (- width matrix-size)) (inc (- height matrix-size)))
         max-power (apply max-key :power
                          (map #(grid-sat->matrix-power-at-coord sat %1 matrix-size) all-coords))]
     (assoc (assoc max-power :x (inc (:x max-power))) :y (inc (:y max-power)))))
