@@ -168,12 +168,14 @@
           collision-detected-in-old-carts? {:collision true :carts collision-detected-in-old-carts?}
           :default (recur (conj new-carts updated-cart) rest-carts))))))
 
+(defn sort-carts [carts]
+  (sort-by :y (sort-by :x carts)))
+
 (defn do-tick [game]
-  (let [{:keys [collision carts]} (get-updated-carts-or-collision game)]
+  (let [game (assoc game :carts (sort-carts (:carts game)))
+        {:keys [collision carts]} (get-updated-carts-or-collision game)]
     (if collision
-      (do
-        (println "Collision")
-        (assoc game :collision collision :carts carts))
+      (assoc game :collision collision :carts carts)
       (assoc game :carts carts))))
 
 (defn do-ticks [game ticks]
@@ -198,5 +200,5 @@
         (do
           (print-game-state game)
           (flush)
-          (. TimeUnit/MILLISECONDS sleep 300)
+          (. TimeUnit/MILLISECONDS sleep 100)
           (recur updated-game))))))
