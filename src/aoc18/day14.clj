@@ -34,11 +34,12 @@
     (assoc game :elf1 elf1-next-index :elf2 elf2-next-index)))
 
 (defn tick-until-board-length [game max-board-length]
-  (loop [{:keys [board] :as game} game]
-    (println "Board length " (count board))
+  (loop [{:keys [board] :as game} game
+         i 0]
+    (println "Iteration " i)
     (if (> (count board) max-board-length)
       game
-      (recur (-> game add-new-recipes-to-board advance-elfs-to-next-recipe)))))
+      (recur (-> game add-new-recipes-to-board advance-elfs-to-next-recipe) (inc i)))))
 
 (defn get-ten-recipes-after-recipes [game recipes-to-make]
   (let [game (tick-until-board-length game (+ 10 recipes-to-make))]

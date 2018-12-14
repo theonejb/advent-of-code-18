@@ -41,8 +41,12 @@ def advance_game(game):
   game["elf2"] = elf2_new
 
 def advance_game_until_board_length(game, max_length, do_print=False):
+  num_iterations = 0
   while len(game["board"]) < max_length:
     advance_game(game)
+
+    num_iterations += 1
+    print(num_iterations) 
 
     if do_print:
       print_game(game)
