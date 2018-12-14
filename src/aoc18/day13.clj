@@ -79,7 +79,7 @@
 
 (defn print-game-state [{:keys [board carts]}]
   (print-board (add-carts-to-board board carts))
-  ;(dorun (map print-cart carts))
+  (dorun (map print-cart carts))
   )
 
 (defn fname->initial-state [fname]
@@ -149,56 +149,37 @@
         cart-with-correct-direction (update-cart-direction-on-moving-to-rail cart-at-new-location rail)]
     cart-with-correct-direction))
 
-(defn is-cart-at-coord? [{x1 :x y1 :y :as coords} {:keys [x y] :as cart}]
+(defn are-carts-colliding [{:keys [x y]} {x1 :x y1 :y}]
   (and (= x x1) (= y y1)))
 
-(defn cart-at-position? [carts coord]
-  (filter (partial is-cart-at-coord? coord) carts))
+(defn get-colliding-carts [carts cart-to-check]
+  (filter (partial are-carts-colliding cart-to-check) carts))
 
-(defn get-updated-carts-or-collision [game]
-  (loop [new-carts []
-         [cart & rest-carts] (:carts game)]
-    (if (nil? cart)
-      {:collision nil :carts new-carts}
-      (let [updated-cart (move-cart (:board game) cart)
-            collision-detected-in-new-carts? (not-empty (cart-at-position? new-carts cart))
-            collision-detected-in-old-carts? (not-empty (cart-at-position? rest-carts cart))]
-        (cond
-          collision-detected-in-new-carts? {:collision true :carts collision-detected-in-new-carts?}
-          collision-detected-in-old-carts? {:collision true :carts collision-detected-in-old-carts?}
-          :default (recur (conj new-carts updated-cart) rest-carts))))))
-
-(defn sort-carts [carts]
-  (sort-by :y (sort-by :x carts)))
+(defn remove-colliding-carts [carts cart-to-check]
+  (remove (partial are-carts-colliding cart-to-check) carts))
 
 (defn do-tick [game]
-  (let [game (assoc game :carts (sort-carts (:carts game)))
-        {:keys [collision carts]} (get-updated-carts-or-collision game)]
-    (if collision
-      (assoc game :collision collision :carts carts)
-      (assoc game :carts carts))))
+  (loop [[cart & rest-carts] (:carts game)
+         updated-carts []]
+    (if (nil? cart)
+      (assoc game :carts updated-carts)
+      (let [cart (move-cart (:board game) cart)
+            collisions (concat (get-colliding-carts updated-carts cart) (get-colliding-carts rest-carts cart))
+            updated-carts-without-collision (remove-colliding-carts updated-carts cart)
+            old-carts-without-collision (remove-colliding-carts rest-carts cart)]
+        (if (not-empty collisions)
+          (do
+            (println "Carts collided")
+            (dorun (map print-cart collisions))
+            (recur old-carts-without-collision updated-carts-without-collision))
+          (recur rest-carts (conj updated-carts cart)))))))
 
-(defn do-ticks [game ticks]
-  (loop [game game
-         tick 0]
-    (if (= ticks tick)
-      (print-game-state game)
-      (do
-        (print-game-state game)
-        (flush)
-        (. TimeUnit/MILLISECONDS sleep 300)
-        (recur (do-tick game) (inc tick))))))
-
-(defn do-ticks-until-collision [game]
-  (loop [game game]
-    (let [{:keys [collision carts] :as updated-game} (do-tick game)]
-      (if collision
-        (do
-          (println "Game ended with colliding carts")
-          (dorun (map print-cart carts))
-          nil)
-        (do
-          (print-game-state game)
-          (flush)
-          (. TimeUnit/MILLISECONDS sleep 100)
-          (recur updated-game))))))
+(defn do-ticks-until-last-cart [game]
+  (if (< (count (:carts game)) 2)
+    (print-game-state game)
+    (do
+      ;(. TimeUnit/MILLISECONDS sleep 200)
+      ;(println "\n\nNew loop\n\n")
+      ;(print-game-state game)
+      ;(flush)
+      (recur (do-tick game)))))
