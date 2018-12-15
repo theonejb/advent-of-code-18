@@ -1,7 +1,10 @@
 (ns aoc18.day14
   (:require [clojure.string :as str]))
 
-(def initial-state {:board [3 7] :elf1 0 :elf2 1})
+(defn new-game []
+  {:board (transient [3 7])
+   :elf1 0
+   :elf2 1})
 
 (defn print-game [{:keys [board elf1 elf2]}]
   (println (str/join " " (map-indexed (fn [index recipe]
@@ -21,7 +24,7 @@
     new-recipes))
 
 (defn add-new-recipes-to-board [{:keys [board] :as game}]
-  (assoc game :board (concat board (get-new-recipes game))))
+  (assoc game :board (reduce conj! board (get-new-recipes game))))
 
 (defn advance-elfs-to-next-recipe [{:keys [board elf1 elf2] :as game}]
   (let [board-length (count board)
@@ -43,4 +46,4 @@
 
 (defn get-ten-recipes-after-recipes [game recipes-to-make]
   (let [game (tick-until-board-length game (+ 10 recipes-to-make))]
-    (str/join (take 10 (drop recipes-to-make (:board game))))))
+    (str/join (take 10 (drop recipes-to-make (persistent! (:board game)))))))
