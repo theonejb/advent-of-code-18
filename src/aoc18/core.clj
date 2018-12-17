@@ -1,5 +1,4 @@
 (ns aoc18.core
-  (:gen-class)
-  (:use aoc18.day15))
+  (:gen-class))
 
 (defn -main [& args])

@@ -57,7 +57,6 @@
       board
       coords)))
 
-;033[41m  BG reg
 (def BGRED "\033[41m")
 (def BGGREEN "\033[42m")
 
