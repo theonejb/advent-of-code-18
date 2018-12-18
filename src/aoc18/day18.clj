@@ -88,7 +88,10 @@
         v (* (counter tree) (counter lumberyard))
         grid (tick grid)
         resource-values (conj resource-values v)]
-    (println n)
+    (println "\n\n\n\n")
+    (print-grid grid)
+    (flush)
+    (. TimeUnit/MILLISECONDS sleep 150)
     (if (= n end-value)
       {:grid grid :resource-values resource-values}
       (recur grid resource-values (inc n) end-value))))
