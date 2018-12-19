@@ -16,11 +16,18 @@
   (map parse-input-line (read-input fname)))
 
 (defn clay-regions->bounds [regions]
-  {:x-min (apply min (remove nil? (concat (map :x regions) (map :x-star regions))))
-   :x-max (apply max (remove nil? (concat (map :x regions) (map :x-end regions))))
+  {:x-min-orig (apply min (remove nil? (concat (map :x regions) (map :x-star regions))))
+   :x-max-orig (apply max (remove nil? (concat (map :x regions) (map :x-end regions))))
 
-   :y-min (apply min (remove nil? (concat (map :y regions) (map :y-start regions))))
-   :y-max (apply max (remove nil? (concat (map :y regions) (map :y-end regions))))})
+   :y-min-orig (apply min (remove nil? (concat (map :y regions) (map :y-start regions))))
+   :y-max-orig (apply max (remove nil? (concat (map :y regions) (map :y-end regions))))
+
+   ; Buffer on both sides and zero indexing fix. Plus y=0 because fountain at (500, 0)
+   :x-min      (- (apply min (remove nil? (concat (map :x regions) (map :x-star regions)))) 2)
+   :x-max      (+ (apply max (remove nil? (concat (map :x regions) (map :x-end regions)))) 3)
+
+   :y-min      0
+   :y-max      (inc (apply max (remove nil? (concat (map :y regions) (map :y-end regions)))))})
 
 (defn region->coords [{:keys [x y x-start x-end y-start y-end]}]
   (let [x-start (or x-start x)
@@ -43,10 +50,6 @@
 
 (defn clay-regions->grid [regions]
   (let [{:keys [x-min x-max y-min y-max] :as bounds} (clay-regions->bounds regions)
-        x-min (- x-min 2)                                   ; buffer of 2 on the sides
-        x-max (+ x-max 3)                                   ; buffer of 2 + 1 for Zero indexing
-        y-max (inc y-max)                                   ; Zero indexing
-        y-min 0                                             ; because we have our fountain at 0
         width (- x-max x-min)
         height (- y-max y-min)
 
@@ -62,22 +65,75 @@
                       coords) [0 (- 500 x-min)] \+)))
 
 (def RESET "\033[0m")
-
-(def BGRED "\033[41m")
-(def BGGREEN "\033[42m")
-
-(def WHITE "\033[0;37m")
 (def RED "\033[0;31m")
-(def REDBRIGHT "\033[0;91m")
+(def BLUE "\033[0;34m")
+
+(def space \.)
+(def wall \#)
+(def water-moving \|)
+(def water-standing \~)
 
 (defn print-grid-char [char]
-  (if (= \# char) (str RED char RESET) char))
+  (condp = char
+    wall (str RED char RESET)
+    water-moving (str BLUE char RESET)
+    water-standing (str BLUE char RESET)
+    char))
 
-(defn print-grid [grid]
+(defn print-state [{:keys [grid]}]
   (println (str/join \newline (map (fn [row]
                                      (str/join (map print-grid-char row))) grid))))
 
-(defn fname->grid [fname]
-  (-> fname
-      fname->clay-regions
-      clay-regions->grid))
+(defn fname->state [fname]
+  (let [regions (fname->clay-regions fname)
+        bounds (clay-regions->bounds regions)
+        grid (clay-regions->grid regions)]
+    {:grid grid :bounds bounds}))
+
+(defn drop-water
+  ([grid pos] (drop-water grid pos []))
+  ([grid {:keys [x y] :as water-position} trail]
+   (let [grid-height (count grid)
+         x x
+         y (inc y)
+         next-pos {:x x :y y}
+         next-pos-char (get-in grid [y x])]
+     (cond
+       (>= y grid-height) {:grid grid :position water-position :reason :bounds :trail trail}
+       (not (= space next-pos-char)) {:grid grid :position water-position :reason :not-empty :trail trail}
+       :default (recur (assoc-in grid [y x] water-moving) next-pos (conj trail next-pos))))))
+
+(defn whats-to-the-left [grid {:keys [x y] :as pos}]
+  (let [pos-char (get-in grid [y x])
+        pos-below-char (get-in grid [(inc y) x])
+        next-pos {:x (dec x) :y y}]
+    (cond
+      (= pos-char wall) {:what :wall :position pos}
+      (and (= pos-char space) (= pos-below-char space)) {:what :drop :position pos}
+
+      (> x (count (first grid))) {:what :dragons :position pos}
+      (> y (count grid)) {:what :dragons :position pos}
+      (< x 0) {:what :dragons :position pos}
+      (< y 0) {:what :dragons :position pos}
+
+      :default (recur grid next-pos))))
+
+(defn whats-to-the-right [grid {:keys [x y] :as pos}]
+  (let [pos-char (get-in grid [y x])
+        pos-below-char (get-in grid [(inc y) x])
+        next-pos {:x (inc x) :y y}]
+    (cond
+      (= pos-char wall) {:what :wall :position pos}
+      (and (= pos-char space) (= pos-below-char space)) {:what :drop :position pos}
+
+      (> x (count (first grid))) {:what :dragons :position pos}
+      (> y (count grid)) {:what :dragons :position pos}
+      (< x 0) {:what :dragons :position pos}
+      (< y 0) {:what :dragons :position pos}
+
+      :default (recur grid next-pos))))
+
+(defn fill-with-standing-water [grid {:keys [x y]} end-x]       ; end-x is exclusive
+  (if (= x end-x)
+    grid
+    (recur (assoc-in grid [y x] water-standing) {:x (inc x) :y y} end-x)))
