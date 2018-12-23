@@ -76,9 +76,4 @@
     ))
 
 (defn rm->graph [rm]
-  (into [] (for [[coord region] rm]
-            (let [neighbour-coords (get-neighbours coord)
-                  valid-n-coords (filter rm neighbour-coords)]
-              (for [nc valid-n-coords]
-                (let [n-region (rm nc)]
-                  [region n-region 1]))))))
+  (reduce (fn [g [coord region]]) (g/weighted-digraph) rm)
