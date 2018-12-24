@@ -1,6 +1,8 @@
 (ns aoc18.day22
   (:require [loom.graph :as g]
-            [loom.alg :as alg]))
+            [loom.alg :as alg]
+            [clojure.string :as str])
+  (:import (java.util.concurrent TimeUnit)))
 
 (defn region-info->string [ri]
   (format "(%d, %d) %s" (get-in ri [:coord :x]) (get-in ri [:coord :y]) (:type ri)))
@@ -60,11 +62,12 @@
     :wet \=
     :narrow \|))
 
-(defn print-map [region-map]
+(defn print-map [region-map interest-point interest-point-char]
   (let [{:keys [x-max y-max]} (get-map-bounds region-map)]
     (dorun (for [y (range (inc y-max))
                  x (range (inc x-max))]
-             (let [region-char (char-for-region (region-map {:x x :y y}))]
+             (let [coord {:x x :y y}
+                   region-char (if (= coord interest-point) interest-point-char (char-for-region (region-map coord)))]
                (if (and (not (= 0 y)) (= 0 x)) (println))
                (print region-char))))
     (println)))
@@ -127,4 +130,4 @@
                     all-edges))))
 
 (defn rm->graph [rm]
-  (apply g/weighted-digraph (rm->edges rm)))
+  (apply g/weighted-digraph (rm->edges rm)))Ò
