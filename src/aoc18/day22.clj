@@ -130,4 +130,4 @@
                     all-edges))))
 
 (defn rm->graph [rm]
-  (apply g/weighted-digraph (rm->edges rm)))Ò
+  (apply g/weighted-digraph (rm->edges rm)))
